@@ -25,8 +25,10 @@ path = os.getcwd()
 print (path)
 
 
+raindir = path+'/Data/Rain data/'
+
 ## Rain gauges indexed by rain gauge name
-Rain_gauge_info = pd.read_csv(maindir+'Ancillary_files/Rain_gauge_info.csv',index_col=0)
+Rain_gauge_info = pd.read_csv(path+'/Ancillary Files/Rain_gauge_info.csv',index_col=0)
 ## List of unique rain gauge names
 Rain_gauge_names = Rain_gauge_info.index.unique()
 
@@ -34,14 +36,17 @@ Rain_gauge_names = Rain_gauge_info.index.unique()
 #Rain_gauge_names = ['Los Coches']
 
 
-## Run this block to get the current month's data. then manually move it to "Month rain data" folder
+## Run this block to get the current month's data. 
 ## Block below will go through all folders and combine monthly rainfall data
 
+
+
 ######### UPDATE HERE ###################
-start_date, end_date = '2021-09-01', '2021-09-16' 
+month = 'April' # name for folder
+start_date, end_date = '2022-04-01', '2022-05-01' 
 #start_date, end_date = '2021-08-01', dt.date.today().strftime('%Y-%m-%d') ## for current day: dt.date.today().strftime('%Y-%m-%d')
 time_bin  = '3600' #seconds. Daily=86400, Hourly=3600
-month = 'September' # name for folder
+
 #######################################
 
 
@@ -50,13 +55,13 @@ daterange = pd.date_range(start_date.replace('-',''),end_date.replace('-',''),fr
 
 for Rain_gauge_name in Rain_gauge_names:
     print (Rain_gauge_name)
-    RG_ID = str(Rain_gauge_info.ix[Rain_gauge_name]['rain_gauge_id'])
+    RG_ID = str(Rain_gauge_info.loc[Rain_gauge_name]['rain_gauge_id'])
     print ('ID: '+ RG_ID)
-    RG_SERIAL = Rain_gauge_info.ix[Rain_gauge_name]['rain_gauge_serial']
+    RG_SERIAL = Rain_gauge_info.loc[Rain_gauge_name]['rain_gauge_serial']
     print ('SERIAL :'+RG_SERIAL)
-    RG_DEV_ID = str(Rain_gauge_info.ix[Rain_gauge_name]['rain_gauge_device_id'])
+    RG_DEV_ID = str(Rain_gauge_info.loc[Rain_gauge_name]['rain_gauge_device_id'])
     print ('DEVICE ID: '+ RG_DEV_ID)
-    RG_DEV_SERIAL = Rain_gauge_info.ix[Rain_gauge_name]['rain_gauge_device_serial']
+    RG_DEV_SERIAL = Rain_gauge_info.loc[Rain_gauge_name]['rain_gauge_device_serial']
     print ('DEVICE SERIAL: '+ RG_DEV_SERIAL)
     print ('\n')
 
@@ -122,14 +127,14 @@ for Rain_gauge_name in Rain_gauge_names:
                            print (h4_tag)
                            print ()
                            pass
-                    rain_data_df = pd.DataFrame({'Rain_in':rain_vals},index=pd.to_datetime(times)).sort_index()
+                    rain_data_df = pd.DataFrame({Rain_gauge_name+'_precip_in':rain_vals},index=pd.to_datetime(times)).sort_index()
                     rain_data_1hr = rain_data_df.resample('1H').sum().fillna(0.) 
                     rain_data_1hr = rain_data_1hr.reindex(pd.date_range(start_date.replace('-',''),end_date.replace('-',''),freq='H'))
                     rain_data_1D = rain_data_df.resample('D').sum()
                     rain_data_1D = rain_data_1D.reindex(pd.date_range(start_date.replace('-',''),end_date.replace('-',''),freq='D'))
                     
-                    rain_data_1hr.to_csv(maindir+'Rain_data/'+month+' rain data/'+Rain_gauge_name+'_hourly.csv')
-                    rain_data_1D.to_csv(maindir+'Rain_data/'+month+' rain data/'+Rain_gauge_name+'_daily.csv')
+                    rain_data_1hr.to_csv(raindir+month+'/'+Rain_gauge_name+'_hourly.csv')
+                    rain_data_1D.to_csv(raindir+month+'/'+Rain_gauge_name+'_daily.csv')
             except Exception as e:
                print (e)
                pass
@@ -149,11 +154,12 @@ for Rain_gauge_name in Rain_gauge_names:
 #Place newly downloaded rain data in a second folder in the same directory for that month
 #The script will combine the files with the same names from each folder and output them to the raw data directory.
 
-raindir = maindir+'Rain_data/'
 
-for current_fname in os.listdir('C:/Users/alex.messina/Documents/GitHub/2021_County_LowFlow/Rain_data/'+month+' rain data'):
+for current_fname in os.listdir(raindir+month+'/'):
     print (current_fname)
-    rain_current = pd.DataFrame(columns=['Rain_in'])
+    Rain_gauge_name = current_fname.split('_')[0]
+    print (Rain_gauge_name)
+    rain_current = pd.DataFrame(columns=[Rain_gauge_name+'_precip_in'])
     for folder in [x[0] for x in os.walk(raindir)]:
         print (folder)
         ## month file
@@ -168,29 +174,28 @@ for current_fname in os.listdir('C:/Users/alex.messina/Documents/GitHub/2021_Cou
     rain_current = rain_current.drop_duplicates(subset='idx')
     rain_current = rain_current.sort_index().dropna()
 #    print (rain_current)
-    rain_current[['Rain_in']].to_csv(raindir+current_fname)
+    rain_current[[Rain_gauge_name+'_precip_in']].to_csv(raindir+current_fname)
 
     
 #%% combine rain data for database/BI
     
-precip_hourly = pd.DataFrame(index=pd.date_range(dt.datetime(2021,5,1,0,0),dt.datetime.now(),freq='H'))
+precip_hourly = pd.DataFrame(index=pd.date_range(dt.datetime(2022,4,14,0,0),dt.datetime.now(),freq='H'))
     
 for r in [f for f in os.listdir(raindir) if f.endswith('hourly.csv')]:
     print (r)
     rain_gauge_name = r.split('_hourly.csv')[0]
-    print (rain_gauge_name+'_in')
-    precip_hourly.loc[:,rain_gauge_name+'_in'] = pd.read_csv(raindir + r,index_col=0,parse_dates=True)['Rain_in']
+    print (rain_gauge_name+'_precip_in')
+    precip_hourly.loc[:,rain_gauge_name+'_precip_in'] = pd.read_csv(raindir + r,index_col=0,parse_dates=True)[rain_gauge_name+'_precip_in']
     
 precip_hourly.to_csv(raindir + 'Rain_data_hourly_in.csv')    
 
 #%% Plot rain data
 ## Data from  https://sandiego.onerain.com/rain.php
-raindir = maindir+'Rain_data/'
 #for all gauges
-rain_files = [f for f in os.listdir(maindir+'Rain_data/') if f.endswith('hourly.csv')==True]
+rain_files = [f for f in os.listdir(raindir) if f.endswith('hourly.csv')==True]
 #for one gauge
-gauge_name = 'El Camino del Norte'
-rain_files = [f for f in os.listdir(maindir+'Rain_data/') if f.endswith('hourly.csv')==True and f.startswith(gauge_name)==True]
+#gauge_name = 'El Camino del Norte'
+#rain_files = [f for f in os.listdir(raindir) if f.endswith('hourly.csv')==True and f.startswith(gauge_name)==True]
 
 
 fig, ax = plt.subplots(1,1,figsize=(12,8))
@@ -198,18 +203,19 @@ fig, ax = plt.subplots(1,1,figsize=(12,8))
 for rainfile in rain_files:
     print ('')
     print ('Precip file: '+rainfile)
+    Rain_gauge_name = rainfile.split('_')[0]
     rain = pd.read_csv(raindir+rainfile,index_col=0)
     rain.index = pd.to_datetime(rain.index)
     ## Resample to regular interval and fill non-data with zeros
     #rain = rain.resample('15Min').sum()
     
 
-    ax.plot_date(rain.index, rain['Rain_in'],ls='steps-pre',marker='None',label=rainfile.split('_daily.csv')[0])
+    ax.plot_date(rain.index, rain[Rain_gauge_name+'_precip_in'],ls='steps-pre',marker='None',label=rainfile)
     ax.xaxis.set_major_formatter(mpl.dates.DateFormatter('%m/%d/%Y %H:%M'))
     
     
     #rain_1D.to_csv(daily_rain_files+'Daily-'+rainfile.replace('.xls','.csv'))
-ax.set_ylabel('Rain in. (daily)')
-ax.legend(ncol=4,fontsize=12)
+ax.set_ylabel('Rain in/hour')
+ax.legend(ncol=4,fontsize=9,loc='upper center', bbox_to_anchor=(0.5, 1.12),fancybox=True, shadow=True)
 plt.tight_layout()
 
